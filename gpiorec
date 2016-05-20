@@ -1,0 +1,258 @@
+#!/bin/bash
+#
+# Used utils: dd (install before use)
+# Example of CDRECORD:
+# cdrecord dev=4,0,0 gracetime=2 -eject -sao -s -nopad -data /path/to/file/filename.iso
+# name=CDRecord,service=MediaWriter set executable to /usr/local/bin/gpiorec
+
+gpiobutton=0 # pins 9/11
+gpioled=2    # pins 13/14
+
+gpiosetup()
+{
+    gpio mode $gpioled out
+    gpio mode $gpiobutton in
+    gpio mode $gpiobutton up #pullup resistor
+}
+gpiowaitbutton()
+{
+    while [ `gpio read $gpiobutton` = 1 ]; do
+	sleep 0.1
+    done
+    while [ `gpio read $gpiobutton` = 0 ]; do
+	sleep 0.1
+    done
+}
+gpiolight_on()
+{
+    gpio write $gpioled 1
+}
+gpiolight_off()
+{
+    gpio write $gpioled 0
+}
+
+function begin {
+    USBKEYS=($(
+        grep -Hv ^0$ /sys/block/*/removable |
+        sed s/removable:.*$/device\\/uevent/ |
+        xargs grep -H ^DRIVER=sd |
+        sed s/device.uevent.*$/size/ |
+        xargs grep -Hv ^0$ |
+        cut -d / -f 4
+    ))
+    usbcheck $USBKEYS
+}
+
+function writer {
+    STICK=$1
+    [ "$STICK" ] || exit 0
+    gpiolight_on
+#   dd if=$file of=/dev/$STICK bs=128M conv=notrunc,noerror
+    gpiolight_off
+echo "Cdrecord 2.0 (i686-suse-linux) Copyright (C) 1995-2002 JÃ¶rg Schilling
+TOC Type: 1 = CD-ROM
+cdrecord: Warning: not running as root user, fs= option ignored.
+scsidev: '0,4,0'
+scsibus: 0 target: 4 lun: 0
+Linux sg driver version: 3.1.24
+Using libscg version 'schily-0.7'
+cdrecord: Warning: using inofficial libscg transport code version
+(okir@suse.de-scsi-linux-sg.c-1.75-resmgr-patch '@(#)scsi-linux-sg.c
+1.75 02/10/21 Copyright 1997 J. Schilling').
+atapi: 0
+Device type    : Removable CD-ROM
+Version        : 4
+Response Format: 2
+Capabilities   : SYNC
+Vendor_info    : 'HP      '
+Identifikation : 'CD-Writer+ 9600 '
+Revision       : '1.0a'
+Device seems to be: Generic mmc CD-RW.
+Using generic SCSI-3/mmc CD-R driver (mmc_cdr).
+Driver flags   : MMC-2 SWABAUDIO
+Supported modes: TAO PACKET SAO SAO/R96R RAW/R96R
+Drive buf size : 4183552 = 4085 KB
+FIFO size      : 4194304 = 4096 KB
+Track 01: data   648 MB
+Total size:      745 MB (73:50.37) = 332278 sectors
+Lout start:      745 MB (73:52/28) = 332278 sectors
+Current Secsize: 2048
+ATIP info from disk:
+  Indicated writing power: 7
+  Is not unrestricted
+  Is not erasable
+  ATIP start of lead in:  -11597 (97:27/28)
+  ATIP start of lead out: 336601 (74:50/01)
+Disk type:    Short strategy type (Phthalocyanine or similar)
+Manuf. index: 20
+Manufacturer: Princo Corporation
+Blocks total: 336601 Blocks current: 336601 Blocks remaining: 4323
+RBlocks total: 346489 RBlocks current: 346489 RBlocks remaining: 14211
+Starting to write CD/DVD at speed 12 in real TAO mode for single
+session.
+Last chance to quit, starting real write    0 seconds. Operation
+starts.
+Waiting for reader process to fill input buffer ... input buffer ready.
+Performing OPC...
+Starting new track at sector: 0
+Track 01:  648 of  648 MB written (fifo 100%) [buf  99%]  12.1x.
+Track 01: Total bytes read/written: 680501248/680501248 (332276
+sectors).
+Writing  time:  400.168s
+Average write speed  11.9x.
+Min drive buffer fill was 99%
+Fixating...
+Fixating time:   22.958s
+cdrecord: fifo had 10719 puts and 10719 gets.
+cdrecord: fifo was 0 times empty and 10592 times full, min fill was 93%."
+}
+function gimmeusb {
+    gpiolight_on
+    sleep 1
+    gpiolight_off
+    sleep 0.5
+    gpiolight_on
+    sleep 1
+    gpiolight_off
+    sleep 0.5
+    gpiolight_on
+    gpiowaitbutton
+    gpiolight_off
+}
+function usbcheck {
+
+    USBKEYS=$1
+    [ "$USBKEYS" ] || gimmeusb;
+    STICK=$USBKEYS
+    writer $STICK
+}
+
+gpiosetup
+for last; do true; done
+argument=$last
+
+if [ $argument = "-checkdrive" ]
+then
+echo "Cdelifrecord-ProDVD-ProBD-Clone 3.01 (x86_64-unknown-linux-gnu) Copyright (C) 1995-2015 Joerg Schilling
+scsidev: '2,0,0'
+scsibus: 2 target: 0 lun: 0
+Linux sg driver version: 3.5.36
+Using libscg version 'schily-0.9'.
+Device type    : Removable CD-ROM
+Version        : 5
+Response Format: 2
+Capabilities   : 
+Vendor_info    : 'ATAPI   '
+Identifikation : 'iHAS122   F     '
+Revision       : 'EL06'
+Device seems to be: Generic mmc2 DVD-R/DVD-RW/DVD-RAM.
+Using generic SCSI-3/mmc   CD-R/CD-RW driver (mmc_cdr).
+Driver flags   : MMC-3 SWABAUDIO BURNFREE FORCESPEED 
+Supported modes: TAO PACKET SAO SAO/R96P SAO/R96R RAW/R16 RAW/R96P RAW/R96R LAYER_JUMP
+cdrecord: Warning: Cannot read drive buffer.
+cdrecord: Warning: The DMA speed test has been skipped."
+
+elif [ $argument = "-atip" ]
+then
+   echo "Cdrecord-ProDVD-ProBD-Clone 3.01 (x86_64-unknown-linux-gnu) Copyright (C) 1995-2015 Joerg Schilling
+scsidev: '2,0,0'
+scsibus: 2 target: 0 lun: 0
+Linux sg driver version: 3.5.36
+Using libscg version 'schily-0.9'.
+Device type    : Removable CD-ROM
+Version        : 5
+Response Format: 2
+Capabilities   : 
+Vendor_info    : 'ATAPI   '
+Identifikation : 'iHAS122   F     '
+Revision       : 'EL06'
+Device seems to be: Generic mmc2 DVD-R/DVD-RW/DVD-RAM.
+Using generic SCSI-3/mmc-2 DVD-R/DVD-RW/DVD-RAM driver (mmc_dvd).
+Driver flags   : NO-CD DVD MMC-3 SWABAUDIO BURNFREE FORCESPEED 
+Supported modes: PACKET SAO LAYER_JUMP
+cdrecord: Warning: Cannot read drive buffer.
+cdrecord: Warning: The DMA speed test has been skipped.
+book type:       DVD-R, Version 2.0x (2.5)
+disc size:       120mm (0)
+maximum rate:    Not specified (15)
+number of layers:1
+track path:      Parallel Track Path (0)
+layer type:      Rewritable Area (2)
+linear density:  0.267 µm/bit (0)
+track density:   0.74 µm/track (0)
+phys start:      196608 (0x30000) 
+phys end:        0
+end layer 0:     0
+bca:             0
+phys size:...    -196607
+copyr prot type: 0
+region mgt info: 0
+last rma sector: 0
+application code:64
+physical code:   193
+last rec address:16621272
+part v./ext code:5/2
+ind wr. power:   132
+wavelength code: 13
+write str. code: 12 98 99 90
+Manufacturer:   'CMC MAG. AM3'
+rzone size:         48
+rzone number:       1
+border number:      1
+ljrs:               0
+track mode:         4 copy: 0
+damage:             0
+reserved track:     0 blank: 1 incremental: 1 fp: 0
+data mode:          1
+lra valid:          0
+nwa valid:          1
+rzone start:        0
+next wr addr:       0
+free blocks:        2297888
+blocking factor:    16
+rzone size:         2297888
+last recorded addr: 0
+read compat lba:    0
+next layerjmp addr: 0
+last layerjmp addr: 0
+
+    Capacity  Blklen/Sparesz.  Format-type  Type
+     2297888             2048         0x00  Unformated or Blank Media
+"
+elif [ $argument = "-toc" ]
+then
+echo "Cdrecord-ProDVD-ProBD-Clone 3.01 (x86_64-unknown-linux-gnu) Copyright (C) 
+scsidev: '2,0,0'
+scsibus: 2 target: 0 lun: 0
+Linux sg driver version: 3.5.36
+Using libscg version 'schily-0.9'.
+Device type    : Removable CD-ROM
+Version        : 5
+Response Format: 2
+Capabilities   : 
+Vendor_info    : 'ATAPI   '
+Identifikation : 'iHAS122   F     '
+Revision       : 'EL06'
+Device seems to be: Generic mmc2 DVD-R/DVD-RW/DVD-RAM.
+Using generic SCSI-3/mmc-2 DVD-R/DVD-RW/DVD-RAM driver (mmc_dvd).
+Driver flags   : NO-CD DVD MMC-3 SWABAUDIO BURNFREE FORCESPEED 
+Supported modes: PACKET SAO LAYER_JUMP
+cdrecord: Warning: Cannot read drive buffer.
+cdrecord: Warning: The DMA speed test has been skipped.
+cdrecord: I/O error. read toc: scsi sendcmd: no error
+CDB:  43 00 00 00 00 00 00 00 04 00
+status: 0x2 (CHECK CONDITION)
+Sense Bytes: 70 00 05 00 00 00 00 0A 00 00 00 00 24 00 00 00
+Sense Key: 0x5 Illegal Request, Segment 0
+Sense Code: 0x24 Qual 0x00 (invalid field in cdb) Fru 0x0
+Sense flags: Blk 0 (not valid) 
+cmd finished after 0.010s timeout 100s
+cdrecord: Cannot read TOC header
+cdrecord: Cannot read TOC/PMA."
+
+else
+   file=$argument
+   begin
+fi
+
