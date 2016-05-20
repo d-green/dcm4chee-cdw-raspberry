@@ -1,0 +1,65 @@
+#!/bin/bash
+gpiobutton=0 # pins 9/11
+gpioled=2    # pins 13/14
+gpiosetup()
+{
+    gpio mode $gpioled out
+    gpio mode $gpiobutton in
+    gpio mode $gpiobutton up #pullup resistor
+}
+gpiowaitbutton()
+{
+    while [ `gpio read $gpiobutton` = 1 ]; do
+	sleep 0.1
+    done
+    while [ `gpio read $gpiobutton` = 0 ]; do
+	sleep 0.1
+    done
+}
+gpiolight_on()
+{
+    gpio write $gpioled 1
+}
+gpiolight_off()
+{
+    gpio write $gpioled 0
+}
+
+function gimmeusb {
+    gpiolight_on
+    sleep 1
+    gpiolight_off
+    sleep 0.5
+    gpiolight_on
+    sleep 1
+    gpiolight_off
+    sleep 0.5
+    gpiolight_on
+    gpiowaitbutton
+    gpiolight_off
+}
+
+for last; do true; done
+argument=$last
+
+gpiosetup
+gpiolight_on
+nice -1 cp -r $argument/* /media/usb0
+sleep 1
+sync
+sleep 1
+umount /media/usb0
+gpiolight_off
+du -c $argument | grep total|sed -r s/total//
+echo "
+ 30.09% done, estimate finish Mon Feb  1 03:30:27 2016
+ 60.18% done, estimate finish Mon Feb  1 03:30:25 2016
+ 90.29% done, estimate finish Mon Feb  1 03:30:25 2016
+Total translation table size: 0
+Total rockridge attributes bytes: 0
+Total directory bytes: 47104
+Path table size(bytes): 370
+Max brk space used 32000
+16623 extents written (32 MB)"
+exit 0
+
