@@ -1,6 +1,8 @@
 #!/bin/bash
+LOGFILE=/srv/dcm4chee-cdw/server/default/log/gpioisofs.log
 gpiobutton=0 # pins 9/11
 gpioled=2    # pins 13/14
+waittime=60  # sec to blinking waiting
 gpiosetup()
 {
     gpio mode $gpioled out
@@ -16,6 +18,18 @@ gpiowaitbutton()
 	sleep 0.1
     done
 }
+gpiotestbutton()
+{
+    if [ `gpio read $gpiobutton` = 0 ]
+    then
+	sleep 0.2
+        if [ `gpio read $gpiobutton` = 0 ]
+	then
+	    return 0
+	fi
+    fi
+    return 1
+}
 gpiolight_on()
 {
     gpio write $gpioled 1
@@ -24,42 +38,62 @@ gpiolight_off()
 {
     gpio write $gpioled 0
 }
-
 function gimmeusb {
+while [[ `cat /proc/mounts |grep media | wc -l` = 0 && $waittime -gt 0 ]]; do
     gpiolight_on
-    sleep 1
+    sleep 0.5
     gpiolight_off
     sleep 0.5
-    gpiolight_on
-    sleep 1
-    gpiolight_off
-    sleep 0.5
-    gpiolight_on
-    gpiowaitbutton
-    gpiolight_off
+    ((waittime--))
+    gpiotestbutton
+    if [ "$?" -eq 0 ]
+    then
+	exit 1 
+	# User pressed button to abort
+    fi
+done
 }
-
+# main
 for last; do true; done
 argument=$last
-
 gpiosetup
 gpiolight_on
-nice -1 cp -r $argument/* /media/usb0
-sleep 1
-sync
-sleep 1
-umount /media/usb0
+FLASH_SIZE=`du -s -k $argument |awk '{print $1*2+65535}'|bc`
+LAST_SEC=`echo $FLASH_SIZE+2047|bc`
+NEXT_START=`echo $FLASH_SIZE+2048|bc`
+echo $argument >>$LOGFILE
+start=$(date +%s.%N);
+printf "Timestamp $start %d sectors " $FLASH_SIZE >>$LOGFILE
+du -s -k $argument >>$LOGFILE
+dd if=/dev/zero of=/tmp/flash.img bs=512 count=$FLASH_SIZE status=none
+/sbin/losetup /dev/loop0 /tmp/flash.img
+/sbin/mkfs -t vfat /dev/loop0 >>/dev/null
+sleep 2
+mount /dev/loop0 /mnt
+tt=$(echo "$(date +%s.%N) - $start" | bc);
+printf "Create image(dd) %fsec. " $tt >>$LOGFILE
+cp -r $argument/* /mnt
+umount /dev/loop0 &
+wait
+/sbin/losetup -D
+tt=$(echo "$(date +%s.%N) - $start" | bc);
+printf "Copy(cp) %fsec. " $tt >>$LOGFILE
+parted -s -a none /dev/sda mklabel msdos >/dev/null
+parted -s -a none /dev/sda unit s mkpart primary fat32 2048 $LAST_SEC >/dev/null
+partprobe &
+wait
+mkfs -t vfat /dev/sda1 >/dev/null &
+wait
+dd if=/tmp/flash.img of=/dev/sda1 bs=512 count=$FLASH_SIZE status=none &
+wait
+tt=$(echo "$(date +%s.%N) - $start" | bc);
+printf "Move image(dd) %fsec.\n" $tt >>$LOGFILE
+rm /tmp/flash.img
+parted -s -a none /dev/sda unit s mkpart primary fat32 $NEXT_START 100% >/dev/null
+partprobe &
+wait
+mkfs -t vfat /dev/sda2 >/dev/null
+sleep 2
 gpiolight_off
-du -c $argument | grep total|sed -r s/total//
-echo "
- 30.09% done, estimate finish Mon Feb  1 03:30:27 2016
- 60.18% done, estimate finish Mon Feb  1 03:30:25 2016
- 90.29% done, estimate finish Mon Feb  1 03:30:25 2016
-Total translation table size: 0
-Total rockridge attributes bytes: 0
-Total directory bytes: 47104
-Path table size(bytes): 370
-Max brk space used 32000
-16623 extents written (32 MB)"
 exit 0
 
